@@ -2,20 +2,17 @@
 import { useState, useRef, useEffect } from "react";
 
 export default function Home() {
-  // Core State
   const [leagueId, setLeagueId] = useState("");
   const [loading, setLoading] = useState(false);
   const [leagueData, setLeagueData] = useState<any>(null);
   const [error, setError] = useState("");
   const [savedLeagues, setSavedLeagues] = useState<{ id: string; name: string }[]>([]);
 
-  // Username Search State
   const [username, setUsername] = useState("");
   const [loadingUser, setLoadingUser] = useState(false);
   const [userLeagues, setUserLeagues] = useState<any[]>([]);
   const [usernameError, setUsernameError] = useState("");
 
-  // Trade & AI State
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeMode, setAnalyzeMode] = useState<"fast" | "pro" | null>(null);
@@ -23,6 +20,9 @@ export default function Home() {
   const [followUp, setFollowUp] = useState("");
   const [analyzeError, setAnalyzeError] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // NEW: Paywall Modal State
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +37,6 @@ export default function Home() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory]);
 
-  // Fetch all leagues for a specific username
   const handleFetchUserLeagues = async () => {
     if (!username.trim()) return;
     setLoadingUser(true);
@@ -54,7 +53,7 @@ export default function Home() {
       const leaguesData = await leaguesRes.json();
 
       if (!leaguesData || leaguesData.length === 0) {
-        throw new Error("No 2026 leagues found for this user. (Note: Sleeper may still be using 2025 IDs for some leagues)");
+        throw new Error("No 2026 leagues found for this user.");
       }
 
       setUserLeagues(leaguesData);
@@ -150,6 +149,12 @@ export default function Home() {
   };
 
   const handleAnalyzeTrade = async (mode: "fast" | "pro") => {
+    // --- MONETIZATION HOOK ---
+    if (mode === "pro") {
+      setShowPaywall(true);
+      return; 
+    }
+
     setIsAnalyzing(true);
     setAnalyzeMode(mode);
     setAnalyzeError("");
@@ -160,17 +165,10 @@ export default function Home() {
     const isDynasty = leagueData.leagueInfo.settings?.type === 2;
 
     let prompt = `Act as an expert fantasy football analyst. It is currently March 2026. Evaluate players based on their current 2026 status.\n\n`;
-    
-    if (mode === "pro") {
-      prompt += `CRITICAL INSTRUCTION: This is a PRO-tier request. You must conduct a highly granular review and a thorough, meticulous analysis of every single moving piece. Break down the 2-to-3 year trajectory of the assets, historical draft capital hit rates, and the deep, underlying roster implications for both teams. Provide a long-form, multi-paragraph deep dive before rendering your final verdict.\n\n`;
-    } else {
-      prompt += `CRITICAL INSTRUCTION: This is a FAST-tier request. Provide a concise, snappy, and fast-paced analysis hitting the main points of the trade without excessive fluff.\n\n`;
-    }
-
+    prompt += `CRITICAL INSTRUCTION: This is a FAST-tier request. Provide a concise, snappy, and fast-paced analysis hitting the main points of the trade without excessive fluff.\n\n`;
     prompt += `CRITICAL INSTRUCTIONS FOR NUMERICAL SCORING:\n`;
     prompt += `1. You MUST assign a concrete "Trade Value Score" (using arbitrary value points, e.g., 5500 vs 5200) to both sides of the proposed trade to mathematically show how close the trade is.\n`;
-    prompt += `2. You MUST calculate a "Team Power Rating" (on a scale of 0 to 100) ONLY for the specific teams involved in the trade. Do NOT generate a Power Rankings table for the entire 12-team league. Just state the Power Ratings for the trading teams.\n\n`;
-    
+    prompt += `2. You MUST calculate a "Team Power Rating" (on a scale of 0 to 100) ONLY for the specific teams involved in the trade.\n\n`;
     prompt += `League Rules: ${isSuperflex ? "Superflex" : "1QB"}, ${ppr} PPR, ${tep} TE Premium. Type: ${isDynasty ? "Dynasty" : "Redraft/Keeper"}\n\n`;
 
     prompt += `--- PROPOSED TRADE ---\n`;
@@ -189,8 +187,6 @@ export default function Home() {
     });
 
     prompt += `--- ENTIRE LEAGUE ROSTER CONTEXT ---\n`;
-    prompt += `Below are the full rosters, draft picks, and ALL-TIME FRANCHISE HISTORY for EVERY team in the league. Use this to understand the league ecosystem and calculate the Team Power Ratings.\n\n`;
-    
     leagueData.rosters.forEach((roster: any) => {
         const teamName = getTeamNameByRosterId(roster.roster_id);
         prompt += `**${teamName}:**\n${getFullRosterContext(teamName)}\n\n`;
@@ -264,18 +260,59 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-900 text-white p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-blue-400 mb-8">AI Trade Analyzer</h1>
+    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-purple-500/30 font-sans flex flex-col">
+      
+      {/* --- MODERN HEADER --- */}
+      <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-[0_0_15px_rgba(147,51,234,0.4)]">
+              A
+            </div>
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+              TradeAnalyzer AI
+            </span>
+          </div>
+          <nav className="flex items-center gap-4 text-sm font-medium">
+            <button className="text-slate-400 hover:text-white transition">Features</button>
+            <button className="text-slate-400 hover:text-white transition">Pricing</button>
+            {/* Future Authentication Login Button */}
+            <button className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-full transition border border-slate-700">
+              Sign In
+            </button>
+          </nav>
+        </div>
+      </header>
 
-        {/* --- REBUILT IMPORT SECTION --- */}
-        <div className="bg-slate-800 p-6 rounded-xl shadow-lg mb-8 border border-slate-700">
-          <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
-            <h2 className="text-xl font-semibold">1. Load Your League</h2>
+      {/* --- MAIN APP CONTENT --- */}
+      <main className="flex-1 max-w-7xl mx-auto w-full p-6 lg:p-8">
+        
+        {/* Welcome Hero (Only shows before league loads) */}
+        {!leagueData && (
+          <div className="text-center max-w-2xl mx-auto mt-12 mb-16 animate-fade-in">
+            <h1 className="text-5xl font-black text-white mb-6 tracking-tight leading-tight">
+              Dominate Your Dynasty League with <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Omniscient AI.</span>
+            </h1>
+            <p className="text-lg text-slate-400 mb-8">
+              Import your Sleeper league. Stage any trade. Let our 2026-aware AI analyze rosters, draft capital, and historical performance to crown a winner.
+            </p>
+          </div>
+        )}
+
+        {/* --- REBUILT IMPORT SECTION (Glassmorphism) --- */}
+        <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-xl mb-10 border border-slate-800/60 relative overflow-hidden">
+          {/* Subtle background glow */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+          
+          <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-md">1</span> 
+              Load Your League
+            </h2>
             {leagueData && !savedLeagues.some((l) => l.id === leagueId) && (
               <button
                 onClick={handleSaveLeague}
-                className="text-sm bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded font-bold transition flex items-center gap-1"
+                className="text-xs bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/20 px-3 py-1.5 rounded-full font-bold transition flex items-center gap-1"
               >
                 ⭐ Save Current League
               </button>
@@ -283,9 +320,11 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left Column: Username Search */}
-            <div className="bg-slate-900/50 p-5 rounded-lg border border-slate-600">
-              <h3 className="font-bold text-blue-400 mb-3 text-sm uppercase tracking-wider">Search by Username</h3>
+            <div className="bg-slate-950/50 p-5 rounded-xl border border-slate-800/80">
+              <h3 className="font-bold text-slate-300 mb-3 text-xs uppercase tracking-wider flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                Search by Username
+              </h3>
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"
@@ -293,12 +332,12 @@ export default function Home() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleFetchUserLeagues()}
-                  className="flex-1 bg-slate-800 p-2.5 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm"
+                  className="flex-1 bg-slate-900 p-3 rounded-lg border border-slate-700 focus:outline-none focus:border-blue-500 text-sm transition"
                 />
                 <button
                   onClick={handleFetchUserLeagues}
                   disabled={loadingUser || !username}
-                  className="bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded text-sm font-bold transition disabled:opacity-50"
+                  className="bg-blue-600 hover:bg-blue-500 px-5 py-3 rounded-lg text-sm font-bold transition disabled:opacity-50 shadow-md"
                 >
                   {loadingUser ? "..." : "Find"}
                 </button>
@@ -306,12 +345,12 @@ export default function Home() {
               {usernameError && <p className="text-red-400 mt-1 text-xs">{usernameError}</p>}
 
               {userLeagues.length > 0 && (
-                <div className="mt-4 flex flex-col gap-2 animate-fade-in border-t border-slate-700 pt-4">
-                  <label className="text-xs text-slate-400 font-bold">Select a League:</label>
+                <div className="mt-5 flex flex-col gap-2 animate-fade-in border-t border-slate-800 pt-5">
+                  <label className="text-xs text-slate-400 font-medium">Select a 2026 League:</label>
                   <select
                     onChange={(e) => setLeagueId(e.target.value)}
                     value={leagueId}
-                    className="w-full bg-slate-800 p-2.5 rounded border border-blue-500 focus:outline-none text-sm text-slate-200"
+                    className="w-full bg-slate-900 p-3 rounded-lg border border-slate-700 focus:outline-none focus:border-blue-500 text-sm text-slate-200"
                   >
                     {userLeagues.map((league) => (
                       <option key={league.league_id} value={league.league_id}>
@@ -322,25 +361,23 @@ export default function Home() {
                   <button
                     onClick={() => handleImport(leagueId)}
                     disabled={loading}
-                    className="w-full bg-green-600 hover:bg-green-500 py-2.5 rounded text-sm font-bold transition disabled:opacity-50 mt-1"
+                    className="w-full bg-slate-200 hover:bg-white text-slate-900 py-3 rounded-lg text-sm font-bold transition disabled:opacity-50 mt-2 shadow-sm"
                   >
-                    {loading ? "Loading Roster Data..." : "Import Selected League"}
+                    {loading ? "Syncing Roster Data..." : "Import Selected League"}
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Right Column: Saved & Manual */}
             <div className="flex flex-col gap-4">
-              {/* Saved Leagues */}
               {savedLeagues.length > 0 && (
-                <div className="bg-slate-900/50 p-5 rounded-lg border border-slate-600">
-                  <h3 className="font-bold text-yellow-500 mb-3 text-sm uppercase tracking-wider">Saved Leagues</h3>
+                <div className="bg-slate-950/50 p-5 rounded-xl border border-slate-800/80">
+                  <h3 className="font-bold text-slate-300 mb-3 text-xs uppercase tracking-wider">Saved Leagues</h3>
                   <div className="flex gap-2">
                     <select
                       onChange={(e) => setLeagueId(e.target.value)}
                       value={leagueId}
-                      className="flex-1 bg-slate-800 p-2.5 rounded border border-slate-600 focus:outline-none focus:border-yellow-500 text-sm text-slate-200"
+                      className="flex-1 bg-slate-900 p-3 rounded-lg border border-slate-700 focus:outline-none text-sm text-slate-200"
                     >
                       <option value="" disabled>Select...</option>
                       {savedLeagues.map((league) => (
@@ -352,7 +389,7 @@ export default function Home() {
                     <button
                       onClick={() => handleImport(leagueId)}
                       disabled={loading || !leagueId}
-                      className="bg-yellow-600 hover:bg-yellow-500 px-4 py-2.5 rounded text-sm font-bold transition disabled:opacity-50"
+                      className="bg-slate-700 hover:bg-slate-600 px-5 py-3 rounded-lg text-sm font-bold transition disabled:opacity-50"
                     >
                       Load
                     </button>
@@ -360,21 +397,20 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Manual ID Input */}
-              <div className="bg-slate-900/50 p-5 rounded-lg border border-slate-600">
-                <h3 className="font-bold text-slate-400 mb-3 text-sm uppercase tracking-wider">Manual League ID</h3>
+              <div className="bg-slate-950/50 p-5 rounded-xl border border-slate-800/80">
+                <h3 className="font-bold text-slate-300 mb-3 text-xs uppercase tracking-wider">Manual League ID</h3>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="18-digit ID"
                     value={leagueId}
                     onChange={(e) => setLeagueId(e.target.value)}
-                    className="flex-1 bg-slate-800 p-2.5 rounded border border-slate-600 focus:outline-none focus:border-slate-400 text-sm"
+                    className="flex-1 bg-slate-900 p-3 rounded-lg border border-slate-700 focus:outline-none text-sm"
                   />
                   <button
                     onClick={() => handleImport(leagueId)}
                     disabled={loading || !leagueId}
-                    className="bg-slate-600 hover:bg-slate-500 px-4 py-2.5 rounded text-sm font-bold transition disabled:opacity-50"
+                    className="bg-slate-700 hover:bg-slate-600 px-5 py-3 rounded-lg text-sm font-bold transition disabled:opacity-50"
                   >
                     Import
                   </button>
@@ -383,102 +419,107 @@ export default function Home() {
             </div>
           </div>
           
-          {error && <p className="text-red-400 mt-4 text-center font-bold">{error}</p>}
+          {error && <div className="mt-6 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-center font-medium">{error}</div>}
         </div>
 
         {/* --- TRADE BLOCK --- */}
         {selectedItems.length > 0 && (
-          <div className="bg-slate-800 p-6 rounded-xl shadow-2xl mb-8 border-2 border-blue-500 animate-fade-in sticky top-4 z-10 max-h-[85vh] flex flex-col">
-            <div className="flex justify-between items-center mb-6 shrink-0">
-              <h2 className="text-2xl font-bold text-blue-400">2. Trade Block Staging</h2>
+          <div className="bg-slate-900/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] mb-10 border border-slate-700/50 sticky top-20 z-10 flex flex-col max-h-[80vh]">
+            <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center mb-6 border-b border-slate-800 pb-4 gap-4 shrink-0">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded-md">2</span> 
+                Trade Block Staging
+              </h2>
               
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {chatHistory.length > 0 && (
                   <>
-                    <button
-                      onClick={handleShare}
-                      className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-bold transition flex items-center gap-2"
-                    >
-                      {copied ? "✅ Copied!" : "🔗 Share"}
+                    <button onClick={handleShare} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition border border-slate-700 flex items-center gap-2">
+                      {copied ? "✅ Copied" : "🔗 Share Analysis"}
                     </button>
-                    <button
-                      onClick={() => setChatHistory([])}
-                      className="bg-red-900/50 hover:bg-red-800/80 text-red-200 border border-red-700 px-4 py-2 rounded text-sm font-bold transition"
-                    >
-                      ✕ Close Chat
+                    <button onClick={() => setChatHistory([])} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-4 py-2 rounded-lg text-sm font-medium transition">
+                      ✕ Close
                     </button>
                   </>
                 )}
                 
                 {chatHistory.length === 0 && (
                   <>
-                    <button
-                      onClick={() => {
-                        setSelectedItems([]);
-                        setChatHistory([]);
-                      }}
-                      className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm font-bold transition"
-                    >
+                    <button onClick={() => { setSelectedItems([]); setChatHistory([]); }} className="text-slate-400 hover:text-white px-3 py-2 text-sm font-medium transition">
                       Clear Trade
                     </button>
 
                     <button
                       onClick={() => handleAnalyzeTrade("fast")}
                       disabled={teamsInvolved.length < 2 || isAnalyzing}
-                      className="bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 px-5 py-2 rounded font-bold transition shadow-lg flex items-center gap-2"
+                      className="bg-slate-200 hover:bg-white text-slate-900 disabled:bg-slate-800 disabled:text-slate-500 px-5 py-2 rounded-lg font-bold transition flex items-center gap-2 shadow-sm"
                     >
-                      {isAnalyzing && analyzeMode === "fast" ? (
-                        <span className="animate-pulse">Analyzing...</span>
-                      ) : (
-                        "⚡ Fast"
-                      )}
+                      {isAnalyzing && analyzeMode === "fast" ? "Analyzing..." : "⚡ Fast Analysis"}
                     </button>
 
+                    {/* PRO BUTTON WITH PAYWALL HOOK */}
                     <button
                       onClick={() => handleAnalyzeTrade("pro")}
                       disabled={teamsInvolved.length < 2 || isAnalyzing}
-                      className="bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:text-slate-500 px-5 py-2 rounded font-bold transition shadow-lg flex items-center gap-2"
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 px-5 py-2 rounded-lg font-bold transition flex items-center gap-2 shadow-[0_0_15px_rgba(147,51,234,0.3)] text-white relative overflow-hidden group"
                     >
-                      {isAnalyzing && analyzeMode === "pro" ? (
-                        <span className="animate-pulse">Deep Diving...</span>
-                      ) : (
-                        "🧠 Pro"
-                      )}
+                      <span className="absolute inset-0 w-full h-full bg-white/20 group-hover:translate-x-full transition-transform duration-500 -translate-x-full skew-x-12"></span>
+                      <span>🧠 Pro Deep Dive</span>
+                      <svg className="w-4 h-4 ml-1 opacity-70" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>
                     </button>
                   </>
                 )}
               </div>
             </div>
 
+            {/* PAYWALL MODAL */}
+            {showPaywall && (
+              <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm rounded-2xl flex items-center justify-center p-6 animate-fade-in">
+                <div className="bg-slate-900 border border-purple-500/50 rounded-2xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(147,51,234,0.15)]">
+                  <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/50">
+                    <span className="text-3xl">💎</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Unlock Pro Analysis</h3>
+                  <p className="text-slate-400 mb-6 text-sm leading-relaxed">
+                    Get highly granular, multi-paragraph breakdowns analyzing 3-year asset trajectories, draft capital hit rates, and deep roster implications.
+                  </p>
+                  <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white font-bold py-3 rounded-lg mb-3 transition shadow-lg">
+                    Upgrade to Pro - $4.99/mo
+                  </button>
+                  <button onClick={() => setShowPaywall(false)} className="text-slate-400 hover:text-white text-sm font-medium transition">
+                    Maybe Later
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Rest of the Trade Block (same as before, just styled) */}
             {chatHistory.length === 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto">
                 {teamsInvolved.map((teamName) => (
-                  <div key={teamName} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
-                    <h3 className="text-lg font-bold text-slate-300 mb-3 border-b border-slate-700 pb-2">
-                      {teamName} Sends:
+                  <div key={teamName} className="bg-slate-950/50 p-5 rounded-xl border border-slate-800">
+                    <h3 className="text-sm font-bold text-slate-300 mb-4 border-b border-slate-800 pb-2">
+                      <span className="text-blue-400">{teamName}</span> receives:
                     </h3>
                     <div className="space-y-2">
                       {tradeSides[teamName].map((itemId) => {
                         if (itemId.startsWith("pick_")) {
                           const [_, year, round] = itemId.split("_");
                           return (
-                            <div key={itemId} className="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-600">
-                              <span className="font-medium">{year} Round {round} Pick</span>
-                              <span className="text-xs font-bold px-2 py-1 rounded bg-purple-900 text-purple-200">
-                                PICK
-                              </span>
+                            <div key={itemId} className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-800 shadow-sm">
+                              <span className="font-medium text-sm text-slate-200">{year} Round {round} Pick</span>
+                              <span className="text-[10px] font-black px-2 py-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 tracking-wide">PICK</span>
                             </div>
                           );
                         } else {
                           const player = leagueData.players[itemId];
                           return (
-                            <div key={itemId} className="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-600">
-                              <span className="font-medium">
-                                {player?.first_name} {player?.last_name}
-                              </span>
-                              <span className="text-xs font-bold px-2 py-1 rounded bg-slate-700 text-slate-300">
-                                {player?.position}
-                              </span>
+                            <div key={itemId} className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-800 shadow-sm">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-sm text-slate-200">{player?.first_name} {player?.last_name}</span>
+                                <span className="text-xs text-slate-500">{player?.team}</span>
+                              </div>
+                              <span className="text-[10px] font-black px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 tracking-wide">{player?.position}</span>
                             </div>
                           );
                         }
@@ -489,26 +530,25 @@ export default function Home() {
               </div>
             )}
 
-            {analyzeError && <p className="text-red-400 mt-4">Error: {analyzeError}</p>}
+            {analyzeError && <div className="mt-4 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-center text-sm">{analyzeError}</div>}
 
+            {/* Beautiful Chat Interface */}
             {chatHistory.length > 0 && (
-              <div className="mt-2 flex flex-col flex-1 min-h-[400px] overflow-hidden border border-slate-700 rounded-lg bg-slate-950">
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="mt-2 flex flex-col flex-1 min-h-[400px] overflow-hidden border border-slate-800 rounded-xl bg-slate-950/80 shadow-inner">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   {chatHistory.map((msg, idx) => {
                     if (idx === 0 && msg.role === "user") return null;
-
                     return (
                       <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div
-                          className={`max-w-[85%] p-4 rounded-lg leading-relaxed whitespace-pre-wrap ${
+                        <div className={`max-w-[90%] md:max-w-[80%] p-5 rounded-2xl leading-relaxed whitespace-pre-wrap text-sm shadow-md ${
                             msg.role === "user"
                               ? "bg-blue-600 text-white rounded-br-none"
-                              : "bg-slate-800 text-slate-200 border border-purple-500/30 rounded-bl-none shadow-[0_0_10px_rgba(168,85,247,0.1)]"
+                              : "bg-slate-900 text-slate-300 border border-slate-700/50 rounded-bl-none"
                           }`}
                         >
                           {msg.role === "model" && (
-                            <div className="font-bold text-purple-400 mb-1 flex items-center gap-2 text-sm">
-                              ✨ AI Analyst
+                            <div className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 mb-2 flex items-center gap-2 text-xs uppercase tracking-wider">
+                              ✨ TradeAnalyzer AI
                             </div>
                           )}
                           {msg.text}
@@ -518,27 +558,29 @@ export default function Home() {
                   })}
                   {isAnalyzing && chatHistory.length > 0 && (
                     <div className="flex justify-start">
-                      <div className="bg-slate-800 text-slate-400 p-4 rounded-lg rounded-bl-none border border-slate-700 animate-pulse">
-                        Typing...
+                      <div className="bg-slate-900 text-slate-400 p-4 rounded-2xl rounded-bl-none border border-slate-800 text-sm flex items-center gap-2">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                       </div>
                     </div>
                   )}
                   <div ref={chatEndRef} />
                 </div>
 
-                <form onSubmit={handleFollowUp} className="p-3 bg-slate-900 border-t border-slate-700 flex gap-2 shrink-0">
+                <form onSubmit={handleFollowUp} className="p-4 bg-slate-900/80 border-t border-slate-800 flex gap-3 shrink-0">
                   <input
                     type="text"
                     value={followUp}
                     onChange={(e) => setFollowUp(e.target.value)}
-                    placeholder="Ask a follow-up (e.g., 'What if I add a 2nd round pick?')"
-                    className="flex-1 bg-slate-800 p-3 rounded border border-slate-600 focus:outline-none focus:border-purple-500"
+                    placeholder="Ask a follow-up..."
+                    className="flex-1 bg-slate-950 p-3 rounded-xl border border-slate-700 focus:outline-none focus:border-purple-500 text-sm transition"
                     disabled={isAnalyzing}
                   />
                   <button
                     type="submit"
                     disabled={isAnalyzing || !followUp.trim()}
-                    className="bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 px-6 rounded font-bold transition"
+                    className="bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-500 px-6 rounded-xl font-bold text-sm transition"
                   >
                     Send
                   </button>
@@ -550,25 +592,23 @@ export default function Home() {
 
         {/* --- ROSTERS --- */}
         {leagueData && (
-          <div className="space-y-6 animate-fade-in">
-            <h2 className="text-2xl font-bold text-green-400 mb-6 flex items-center gap-3">
+          <div className="space-y-6 animate-fade-in mt-12">
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3 border-b border-slate-800 pb-4">
+              <span className="bg-slate-800 text-slate-300 text-xs px-2 py-1 rounded-md">3</span> 
               {leagueData.leagueInfo.name} Rosters
-              <span className="text-sm font-normal text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-                Click players or picks to add them to the trade block
-              </span>
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {leagueData.rosters.map((roster: any) => {
                 const teamName = getTeamNameByRosterId(roster.roster_id);
 
                 return (
-                  <div key={roster.roster_id} className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-md">
-                    <div className="bg-slate-950 p-4 border-b border-slate-700 flex justify-between items-center">
-                      <h3 className="font-bold text-lg text-blue-300 truncate">{teamName}</h3>
+                  <div key={roster.roster_id} className="bg-slate-900/40 backdrop-blur-sm rounded-xl overflow-hidden border border-slate-800 shadow-lg hover:border-slate-700 transition duration-300 flex flex-col h-[500px]">
+                    <div className="bg-slate-950/80 p-4 border-b border-slate-800 shrink-0">
+                      <h3 className="font-bold text-sm text-slate-200 truncate">{teamName}</h3>
                     </div>
 
-                    <div className="p-2 h-96 overflow-y-auto">
+                    <div className="p-3 overflow-y-auto flex-1 custom-scrollbar">
                       {roster.players?.map((playerId: string) => {
                         const player = leagueData.players[playerId];
                         if (!player) return null;
@@ -577,26 +617,28 @@ export default function Home() {
                           <div
                             key={playerId}
                             onClick={() => toggleItem(playerId)}
-                            className={`flex justify-between items-center py-2 px-3 mb-1 rounded cursor-pointer transition border ${
+                            className={`flex justify-between items-center py-2 px-3 mb-1.5 rounded-lg cursor-pointer transition border text-sm ${
                               isSelected
-                                ? "bg-blue-900/60 border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]"
-                                : "border-transparent hover:bg-slate-700/50"
+                                ? "bg-blue-600/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)]"
+                                : "bg-slate-900 border-transparent hover:bg-slate-800 hover:border-slate-700"
                             }`}
                           >
-                            <span className={`font-medium ${isSelected ? "text-white" : "text-slate-200"}`}>
+                            <span className={`font-medium truncate mr-2 ${isSelected ? "text-blue-100" : "text-slate-300"}`}>
                               {player.first_name} {player.last_name}
                             </span>
-                            <span className={`text-xs font-bold px-2 py-1 rounded ${isSelected ? "bg-blue-800 text-blue-100" : "bg-slate-700 text-slate-300"}`}>
-                              {player.position} - {player.team}
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded shrink-0 ${isSelected ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
+                              {player.position}
                             </span>
                           </div>
                         );
                       })}
+                      
                       {roster.draft_picks?.length > 0 && (
-                        <div className="mt-4 mb-2 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        <div className="mt-5 mb-3 px-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1">
                           Draft Picks
                         </div>
                       )}
+                      
                       {roster.draft_picks?.map((pick: any) => {
                         const isSelected = selectedItems.includes(pick.id);
                         const originalTeam =
@@ -607,16 +649,16 @@ export default function Home() {
                           <div
                             key={pick.id}
                             onClick={() => toggleItem(pick.id)}
-                            className={`flex justify-between items-center py-2 px-3 mb-1 rounded cursor-pointer transition border ${
+                            className={`flex justify-between items-center py-2 px-3 mb-1.5 rounded-lg cursor-pointer transition border text-sm ${
                               isSelected
-                                ? "bg-purple-900/60 border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]"
-                                : "border-transparent hover:bg-slate-700/50"
+                                ? "bg-purple-600/20 border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.15)]"
+                                : "bg-slate-900 border-transparent hover:bg-slate-800 hover:border-slate-700"
                             }`}
                           >
-                            <span className={`font-medium ${isSelected ? "text-white" : "text-slate-200"}`}>
-                              {pick.year} Round {pick.round} <span className="text-xs text-slate-400">{originalTeam}</span>
+                            <span className={`font-medium truncate mr-2 ${isSelected ? "text-purple-100" : "text-slate-300"}`}>
+                              {pick.year} Rnd {pick.round} <span className="text-[10px] text-slate-500 hidden sm:inline">{originalTeam}</span>
                             </span>
-                            <span className={`text-xs font-bold px-2 py-1 rounded ${isSelected ? "bg-purple-800 text-purple-100" : "bg-slate-800 text-slate-400"}`}>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded shrink-0 ${isSelected ? "bg-purple-600 text-white" : "bg-slate-800 text-slate-500 border border-slate-700"}`}>
                               PICK
                             </span>
                           </div>
@@ -629,7 +671,23 @@ export default function Home() {
             </div>
           </div>
         )}
-      </div>
-    </main>
+      </main>
+
+      {/* --- IP & COPYRIGHT FOOTER --- */}
+      <footer className="bg-slate-950 border-t border-slate-900 mt-20">
+        <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-slate-500 text-sm">
+            &copy; 2026 TradeAnalyzer AI. All rights reserved.
+          </div>
+          <div className="text-slate-600 text-xs text-center md:text-right max-w-md">
+            This tool is for entertainment purposes only. We are not affiliated with Sleeper or KeepTradeCut.
+          </div>
+          <div className="flex gap-4 text-sm text-slate-400">
+            <a href="#" className="hover:text-white transition">Terms of Service</a>
+            <a href="#" className="hover:text-white transition">Privacy Policy</a>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
