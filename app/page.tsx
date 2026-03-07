@@ -1,4 +1,4 @@
-"use client"; // Vercel Update Test 1;
+"use client";
 import { useState, useRef, useEffect } from "react";
 import { SignInButton, Show, UserButton, useUser } from "@clerk/nextjs";
 
@@ -19,21 +19,16 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState<{ role: string; text: string }[]>([]);
   const [showPaywall, setShowPaywall] = useState(false);
 
-  // --- ROBUST PRO CHECK ---
-  // This looks at the metadata we saw in your screenshot
+  // --- REPAIRED PRO CHECK ---
   const rawIsPro = user?.publicMetadata?.isPro;
   const isPro = rawIsPro === true || rawIsPro === "true"; 
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // --- AUTOMATIC PROFILE REFRESH ---
-  // If we detect a success URL, tell Clerk to re-fetch data from the server
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("success") === "true" && user) {
-      console.log("Payment detected, forcing profile reload...");
       user.reload();
-      // Clean up the URL so it doesn't keep reloading
       window.history.replaceState({}, document.title, "/");
     }
   }, [user]);
@@ -99,8 +94,12 @@ export default function Home() {
     }
     setIsAnalyzing(true);
     setAnalyzeMode(mode);
-    const initialMessage = { role: "user", text: `Analyze this trade in ${mode} mode.` };
+    
+    // FIX: Passing context so AI actually has something to look at!
+    const prompt = `Analyze this trade: ${selectedItems.join(", ")}. Mode: ${mode}`;
+    const initialMessage = { role: "user", text: prompt };
     setChatHistory([initialMessage]);
+
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -130,22 +129,18 @@ export default function Home() {
   if (!isLoaded) return null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans p-6">
-      {/* --- DEBUG BOX (Remove this after it works!) --- */}
-      <div className="max-w-6xl mx-auto mb-4 bg-red-900/20 border border-red-500/50 p-3 rounded text-[10px] font-mono">
+    <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8">
+      {/* DEBUG BOX - We need this to see why Pro is locked! */}
+      <div className="max-w-7xl mx-auto mb-6 bg-red-900/30 border border-red-500 p-4 rounded-xl text-xs font-mono">
         <p className="text-red-400 font-bold mb-1">🔍 CONNECTION DEBUGGER</p>
         <p>Metadata in Browser: {JSON.stringify(user?.publicMetadata)}</p>
         <p>IsPro Logic: {isPro ? "✅ ACTIVE" : "❌ LOCKED"}</p>
       </div>
 
-      <header className="max-w-6xl mx-auto flex justify-between items-center mb-10 pb-6 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-black text-white italic tracking-tighter">TRADE<span className="text-blue-500">AI</span></h1>
-          {isPro && (
-            <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-[10px] px-3 py-1 rounded-full text-white font-black uppercase tracking-widest shadow-lg shadow-purple-500/20">
-              PRO MEMBER
-            </span>
-          )}
+      <header className="max-w-7xl mx-auto flex justify-between items-center mb-12">
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-black italic tracking-tighter text-white">TRADE<span className="text-blue-500">AI</span></h1>
+          {isPro && <span className="bg-purple-600 text-[10px] px-3 py-1 rounded-full font-bold">PRO</span>}
         </div>
         <div className="flex items-center gap-4">
           <Show when="signed-out"><SignInButton mode="modal" /></Show>
@@ -153,104 +148,83 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto">
-        {/* Step 1: Sync */}
-        <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800 mb-8 shadow-xl">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <span className="bg-blue-500 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
-            Sync Sleeper League
-          </h2>
-          <div className="flex gap-2">
+      <main className="max-w-7xl mx-auto space-y-8">
+        {/* Import Box */}
+        <section className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl">
+          <h2 className="text-lg font-bold mb-4">1. Sync League</h2>
+          <div className="flex flex-col md:flex-row gap-3">
             <input 
               type="text" 
               placeholder="Sleeper Username" 
               value={username} 
               onChange={(e) => setUsername(e.target.value)} 
-              className="flex-1 bg-slate-950 border border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" 
+              className="flex-1 bg-slate-950 border border-slate-800 p-4 rounded-2xl focus:ring-2 focus:ring-blue-500 transition outline-none" 
             />
-            <button onClick={handleFetchUserLeagues} className="bg-blue-600 hover:bg-blue-500 px-8 rounded-xl font-bold transition">Find</button>
+            <button onClick={handleFetchUserLeagues} className="bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-2xl font-bold transition">Find</button>
           </div>
           {userLeagues.length > 0 && (
-            <div className="mt-4 flex gap-2 animate-in fade-in slide-in-from-top-2">
-              <select onChange={(e) => setLeagueId(e.target.value)} className="flex-1 bg-slate-950 border border-slate-700 p-4 rounded-xl">
+            <div className="mt-4 flex flex-col md:flex-row gap-3 animate-in fade-in slide-in-from-top-4">
+              <select onChange={(e) => setLeagueId(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 p-4 rounded-2xl">
                 {userLeagues.map(l => <option key={l.league_id} value={l.league_id}>{l.name}</option>)}
               </select>
-              <button onClick={() => handleImport()} className="bg-white text-black px-10 rounded-xl font-bold hover:bg-slate-200 transition">Import</button>
+              <button onClick={() => handleImport()} className="bg-white text-black px-12 py-4 rounded-2xl font-bold hover:bg-slate-200 transition">Import</button>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Step 2: Analysis & Paywall */}
+        {/* Trade Analysis Area */}
         {selectedItems.length > 0 && (
-          <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800 mb-8 relative overflow-hidden shadow-xl">
+          <section className="bg-slate-900 border border-slate-800 p-6 rounded-3xl relative overflow-hidden shadow-2xl">
             {showPaywall && (
-              <div className="absolute inset-0 bg-slate-950/98 z-50 flex flex-col items-center justify-center p-8 text-center backdrop-blur-sm animate-in fade-in">
-                <div className="w-20 h-20 bg-purple-600/20 rounded-full flex items-center justify-center mb-6 border border-purple-500/30">
-                  <span className="text-4xl">💎</span>
-                </div>
-                <h3 className="text-3xl font-black text-white mb-3">Upgrade to Pro</h3>
-                <p className="text-slate-400 mb-8 max-w-sm leading-relaxed">
-                  Unlock advanced asset trajectory, deep-dive draft capital hits, and 2026-2027 dynasty value projections.
-                </p>
-                <button 
-                  onClick={handleUpgrade} 
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 w-full max-w-xs py-4 rounded-2xl font-black text-lg shadow-[0_0_30px_rgba(147,51,234,0.3)] hover:scale-105 transition transform mb-4"
-                >
-                  UNLOCK PRO $4.99/mo
-                </button>
-                <button onClick={() => setShowPaywall(false)} className="text-slate-500 hover:text-white transition font-medium">Continue with Basic</button>
+              <div className="absolute inset-0 bg-slate-950/98 z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
+                <span className="text-5xl mb-4">💎</span>
+                <h3 className="text-2xl font-black mb-2">Upgrade Required</h3>
+                <p className="text-slate-400 mb-8 max-w-sm">Pro analysis includes multi-year trajectory and deep-dive asset values.</p>
+                <button onClick={handleUpgrade} className="bg-purple-600 w-full max-w-xs py-4 rounded-2xl font-bold text-lg mb-4 hover:scale-105 transition shadow-lg shadow-purple-500/20">Unlock Pro $4.99</button>
+                <button onClick={() => setShowPaywall(false)} className="text-slate-500 underline text-sm">Cancel</button>
               </div>
             )}
-
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <span className="bg-blue-500 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
-                AI Trade Evaluation
-              </h2>
-              <div className="flex gap-3">
-                <button onClick={() => handleAnalyzeTrade("fast")} className="bg-slate-800 hover:bg-slate-700 px-6 py-2.5 rounded-xl font-bold border border-slate-700 transition">⚡ Fast</button>
-                <button 
-                  onClick={() => handleAnalyzeTrade("pro")} 
-                  className={`px-6 py-2.5 rounded-xl font-bold border transition flex items-center gap-2 ${isPro ? 'bg-purple-600 border-purple-400 shadow-lg shadow-purple-500/20' : 'bg-slate-700 text-slate-400 border-transparent'}`}
-                >
-                  🧠 Pro {isPro ? 'Unlocked' : '🔒'}
-                </button>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold">2. Analyze Trade</h2>
+              <div className="flex gap-2">
+                <button onClick={() => handleAnalyzeTrade("fast")} className="bg-slate-800 px-6 py-2 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition">⚡ Fast</button>
+                <button onClick={() => handleAnalyzeTrade("pro")} className={`px-6 py-2 rounded-xl font-bold border transition ${isPro ? 'bg-purple-600 border-purple-400' : 'bg-slate-800 text-slate-500 border-transparent cursor-not-allowed'}`}>🧠 Pro {isPro ? '' : '🔒'}</button>
               </div>
             </div>
 
             {chatHistory.length > 0 && (
-              <div className="space-y-4 max-h-[500px] overflow-y-auto p-6 bg-slate-950 rounded-2xl border border-slate-800 shadow-inner">
-                {chatHistory.map((msg, i) => i > 0 && (
-                  <div key={i} className={`p-5 rounded-2xl leading-relaxed ${msg.role === 'model' ? 'bg-slate-900/80 border border-slate-800 text-slate-200' : 'bg-blue-900/10 text-blue-300 border border-blue-900/30 italic'}`}>
-                    <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-2">{msg.role === 'model' ? 'AI Analysis Report' : 'User Query'}</div>
-                    <div className="whitespace-pre-wrap">{msg.text}</div>
+              <div className="bg-slate-950 border border-slate-800 p-6 rounded-2xl max-h-96 overflow-y-auto space-y-4">
+                {chatHistory.map((msg, i) => (
+                  <div key={i} className={`p-4 rounded-xl ${msg.role === 'model' ? 'bg-slate-900 border border-slate-800' : 'bg-blue-900/10 text-blue-400 border border-blue-900/20'}`}>
+                    <p className="text-xs font-black uppercase tracking-widest opacity-30 mb-2">{msg.role === 'model' ? 'AI Analyst' : 'Context'}</p>
+                    <div className="whitespace-pre-wrap text-sm">{msg.text}</div>
                   </div>
                 ))}
                 <div ref={chatEndRef} />
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        {/* Rosters Section */}
+        {/* The Rosters Grid */}
         {leagueData && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {leagueData.rosters.map((roster: any) => (
-              <div key={roster.roster_id} className="bg-slate-900/30 p-6 rounded-2xl border border-slate-800 h-[450px] overflow-y-auto hover:border-slate-700 transition group shadow-lg">
-                <h3 className="text-[10px] font-black text-slate-500 uppercase mb-4 sticky top-0 bg-slate-950/50 backdrop-blur-md py-2 border-b border-slate-800 group-hover:text-blue-400 transition">
+              <div key={roster.roster_id} className="bg-slate-900/50 border border-slate-800 p-5 rounded-2xl h-96 overflow-y-auto">
+                <h3 className="text-[10px] font-black text-slate-500 uppercase mb-4 border-b border-slate-800 pb-2 truncate">
                   {getTeamNameByRosterId(roster.roster_id)}
                 </h3>
                 {roster.players?.map((id: string) => {
                   const p = leagueData.players[id];
-                  const sel = selectedItems.includes(id);
+                  const isSelected = selectedItems.includes(id);
                   return (
                     <div 
                       key={id} 
                       onClick={() => toggleItem(id)} 
-                      className={`p-3.5 mb-2 rounded-xl cursor-pointer transition-all border flex justify-between items-center group/item ${sel ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-lg shadow-blue-500/20' : 'bg-slate-950/50 border-transparent hover:border-slate-600 text-slate-400'}`}
+                      className={`p-3 mb-1.5 rounded-xl cursor-pointer transition flex justify-between items-center text-xs border ${isSelected ? 'bg-blue-600 border-blue-400 font-bold text-white' : 'bg-slate-950 border-transparent hover:border-slate-800 text-slate-400'}`}
                     >
                       <span className="truncate mr-2">{p?.first_name} {p?.last_name}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded ${sel ? 'bg-blue-400 text-white' : 'bg-slate-800 text-slate-500'}`}>{p?.position}</span>
+                      <span className="opacity-40">{p?.position}</span>
                     </div>
                   );
                 })}
