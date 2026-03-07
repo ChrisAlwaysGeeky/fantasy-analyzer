@@ -1,8 +1,9 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { SignInButton, Show, UserButton } from "@clerk/nextjs";
+import { SignInButton, Show, UserButton, useUser } from "@clerk/nextjs";
 
 export default function Home() {
+  const { user } = useUser();
   const [leagueId, setLeagueId] = useState("");
   const [loading, setLoading] = useState(false);
   const [leagueData, setLeagueData] = useState<any>(null);
@@ -23,6 +24,8 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
 
   const [showPaywall, setShowPaywall] = useState(false);
+  
+  const isPro = user?.publicMetadata?.isPro === true || user?.publicMetadata?.isPro === "true";
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +152,7 @@ export default function Home() {
   };
 
   const handleAnalyzeTrade = async (mode: "fast" | "pro") => {
-    if (mode === "pro") {
+    if (mode === "pro" && !isPro) {
       setShowPaywall(true);
       return; 
     }
