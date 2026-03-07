@@ -9,9 +9,14 @@ export default function Home() {
 
   const [savedLeagues, setSavedLeagues] = useState<{ id: string; name: string }[]>([]);
 
+  // NEW: State for Username Search
+  const [username, setUsername] = useState("");
+  const [loadingUser, setLoadingUser] = useState(false);
+  const [userLeagues, setUserLeagues] = useState<any[]>([]);
+  const [usernameError, setUsernameError] = useState("");
+
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  // NEW: Track which mode is running so we can show the right loading state
   const [analyzeMode, setAnalyzeMode] = useState<"fast" | "pro" | null>(null);
   const [chatHistory, setChatHistory] = useState<{ role: string; text: string }[]>([]);
   const [followUp, setFollowUp] = useState("");
@@ -31,6 +36,38 @@ export default function Home() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory]);
+
+  // NEW: Function to search Sleeper by Username
+  const handleFetchUserLeagues = async () => {
+    if (!username.trim()) return;
+    setLoadingUser(true);
+    setUsernameError("");
+    setUserLeagues([]);
+    try {
+      // 1. Get the user_id from the username
+      const userRes = await fetch(`https://api.sleeper.app/v1/user/${username}`);
+      if (!userRes.ok) throw new Error("Sleeper username not found.");
+      const userData = await userRes.json();
+      if (!userData?.user_id) throw new Error("Sleeper username not found.");
+
+      // 2. Fetch all their 2026 NFL leagues
+      const leaguesRes = await fetch(`https://api.sleeper.app/v1/user/${userData.user_id}/leagues/nfl/2026`);
+      if (!leaguesRes.ok) throw new Error("Could not fetch leagues.");
+      const leaguesData = await leaguesRes.json();
+
+      if (!leaguesData || leaguesData.length === 0) {
+        throw new Error("No 2026 leagues found for this user.");
+      }
+
+      setUserLeagues(leaguesData);
+      // Auto-select the first league in the dropdown
+      setLeagueId(leaguesData[0].league_id); 
+    } catch (err: any) {
+      setUsernameError(err.message);
+    } finally {
+      setLoadingUser(false);
+    }
+  };
 
   const handleImport = async (idToLoad = leagueId) => {
     if (!idToLoad) return;
@@ -115,7 +152,6 @@ export default function Home() {
     return rosterText;
   };
 
-  // NEW: Accepts a 'mode' argument!
   const handleAnalyzeTrade = async (mode: "fast" | "pro") => {
     setIsAnalyzing(true);
     setAnalyzeMode(mode);
@@ -128,7 +164,6 @@ export default function Home() {
 
     let prompt = `Act as an expert fantasy football analyst. It is currently March 2026. Evaluate players based on their current 2026 status.\n\n`;
     
-    // NEW: Inject aggressive Pro instructions if they click the Pro button
     if (mode === "pro") {
       prompt += `CRITICAL INSTRUCTION: This is a PRO-tier request. You must conduct a highly granular review and a thorough, meticulous analysis of every single moving piece. Break down the 2-to-3 year trajectory of the assets, historical draft capital hit rates, and the deep, underlying roster implications for both teams. Provide a long-form, multi-paragraph deep dive before rendering your final verdict.\n\n`;
     } else {
@@ -136,7 +171,7 @@ export default function Home() {
     }
 
     prompt += `CRITICAL INSTRUCTIONS FOR NUMERICAL SCORING:\n`;
-    prompt += `1. You MUST assign a concrete "Trade Value Score" (using arbitrary value points, e.g., 5500 vs 5200) to both sides of the proposed trade to mathematically show how close the trade is. Use consensus market values (blending KTC, FantasyCalc, etc.).\n`;
+    prompt += `1. You MUST assign a concrete "Trade Value Score" (using arbitrary value points, e.g., 5500 vs 5200) to both sides of the proposed trade to mathematically show how close the trade is. Use consensus market values.\n`;
     prompt += `2. You MUST calculate a "Team Power Rating" (on a scale of 0 to 100) ONLY for the specific teams involved in the trade. Do NOT generate a Power Rankings table for the entire 12-team league. Just state the Power Ratings for the trading teams.\n\n`;
     
     prompt += `League Rules: ${isSuperflex ? "Superflex" : "1QB"}, ${ppr} PPR, ${tep} TE Premium. Type: ${isDynasty ? "Dynasty" : "Redraft/Keeper"}\n\n`;
@@ -249,6 +284,59 @@ export default function Home() {
             )}
           </h2>
 
+          {/* NEW: Find by Username Section */}
+          <div className="mb-6 bg-slate-900/50 p-4 rounded-lg border border-slate-600">
+            <label className="block text-sm font-bold text-slate-400 mb-2">EASY IMPORT: Search by Sleeper Username</label>
+            <div className="flex gap-4 items-center">
+              <input
+                type="text"
+                placeholder="e.g. your_sleeper_username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="flex-1 bg-slate-700 p-3 rounded border border-slate-600 focus:outline-none focus:border-purple-500"
+                onKeyDown={(e) => e.key === 'Enter' && handleFetchUserLeagues()}
+              />
+              <button
+                onClick={handleFetchUserLeagues}
+                disabled={loadingUser || !username}
+                className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded font-bold transition disabled:opacity-50"
+              >
+                {loadingUser ? "Searching..." : "Find Leagues"}
+              </button>
+            </div>
+            {usernameError && <p className="text-red-400 mt-2 text-sm">{usernameError}</p>}
+
+            {/* Render the User's Leagues if found */}
+            {userLeagues.length > 0 && (
+              <div className="mt-4 flex gap-4 animate-fade-in">
+                <select
+                  onChange={(e) => setLeagueId(e.target.value)}
+                  value={leagueId}
+                  className="flex-1 bg-slate-700 p-3 rounded border border-purple-500 focus:outline-none text-slate-200"
+                >
+                  {userLeagues.map((league) => (
+                    <option key={league.league_id} value={league.league_id}>
+                      {league.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => handleImport(leagueId)}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-500 px-8 py-3 rounded font-bold transition disabled:opacity-50"
+                >
+                  {loading ? "Loading..." : "Import This League"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4 mb-4">
+            <hr className="flex-1 border-slate-600" />
+            <span className="text-slate-400 font-bold text-sm">OR USE SAVED / ID</span>
+            <hr className="flex-1 border-slate-600" />
+          </div>
+
           {savedLeagues.length > 0 && (
             <div className="mb-4">
               <select
@@ -270,10 +358,9 @@ export default function Home() {
           )}
 
           <div className="flex gap-4 items-center">
-            {savedLeagues.length > 0 && <span className="text-slate-400 font-bold">OR</span>}
             <input
               type="text"
-              placeholder="Enter New Sleeper League ID"
+              placeholder="Paste Manual 18-Digit League ID"
               value={leagueId}
               onChange={(e) => setLeagueId(e.target.value)}
               className="flex-1 bg-slate-700 p-3 rounded border border-slate-600 focus:outline-none focus:border-blue-500"
@@ -283,7 +370,7 @@ export default function Home() {
               disabled={loading}
               className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded font-bold transition disabled:opacity-50"
             >
-              {loading ? "Loading..." : "Import"}
+              {loading ? "Loading..." : "Import ID"}
             </button>
           </div>
           {error && <p className="text-red-400 mt-4">{error}</p>}
@@ -324,7 +411,6 @@ export default function Home() {
                       Clear Trade
                     </button>
 
-                    {/* NEW: Fast Analysis Button */}
                     <button
                       onClick={() => handleAnalyzeTrade("fast")}
                       disabled={teamsInvolved.length < 2 || isAnalyzing}
@@ -337,7 +423,6 @@ export default function Home() {
                       )}
                     </button>
 
-                    {/* NEW: Pro Analysis Button */}
                     <button
                       onClick={() => handleAnalyzeTrade("pro")}
                       disabled={teamsInvolved.length < 2 || isAnalyzing}
