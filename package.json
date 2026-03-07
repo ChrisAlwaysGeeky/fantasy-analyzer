@@ -9,11 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.0.1",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.98.0",
+    "jose": "^6.2.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "stripe": "^20.4.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

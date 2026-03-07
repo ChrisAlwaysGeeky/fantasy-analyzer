@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { SignInButton, Show, UserButton } from "@clerk/nextjs";
 
 export default function Home() {
   const [leagueId, setLeagueId] = useState("");
@@ -21,7 +22,6 @@ export default function Home() {
   const [analyzeError, setAnalyzeError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // NEW: Paywall Modal State
   const [showPaywall, setShowPaywall] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -149,7 +149,6 @@ export default function Home() {
   };
 
   const handleAnalyzeTrade = async (mode: "fast" | "pro") => {
-    // --- MONETIZATION HOOK ---
     if (mode === "pro") {
       setShowPaywall(true);
       return; 
@@ -259,6 +258,26 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000); 
   };
 
+  // --- UPDATED: SMARTER STRIPE CHECKOUT HANDLER ---
+  const handleUpgrade = async () => {
+    try {
+      const res = await fetch("/api/checkout", { method: "POST" });
+      const data = await res.json();
+      
+      // If the backend threw an error, catch it here!
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create checkout session");
+      }
+
+      if (data.url) {
+        window.location.href = data.url; // Send the user to the Stripe Checkout page!
+      }
+    } catch (err: any) {
+      console.error("Failed to load checkout:", err.message);
+      alert("Checkout Error: " + err.message); // Show the real error on screen!
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-purple-500/30 font-sans flex flex-col">
       
@@ -273,13 +292,22 @@ export default function Home() {
               TradeAnalyzer AI
             </span>
           </div>
+          
           <nav className="flex items-center gap-4 text-sm font-medium">
-            <button className="text-slate-400 hover:text-white transition">Features</button>
-            <button className="text-slate-400 hover:text-white transition">Pricing</button>
-            {/* Future Authentication Login Button */}
-            <button className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-full transition border border-slate-700">
-              Sign In
-            </button>
+            <button className="text-slate-400 hover:text-white transition hidden md:block">Features</button>
+            <button className="text-slate-400 hover:text-white transition hidden md:block">Pricing</button>
+            
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <button className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-full transition border border-slate-700">
+                  Sign In
+                </button>
+              </SignInButton>
+            </Show>
+            
+            <Show when="signed-in">
+              <UserButton appearance={{ elements: { userButtonAvatarBox: "w-9 h-9" } }} />
+            </Show>
           </nav>
         </div>
       </header>
@@ -287,7 +315,7 @@ export default function Home() {
       {/* --- MAIN APP CONTENT --- */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-6 lg:p-8">
         
-        {/* Welcome Hero (Only shows before league loads) */}
+        {/* Welcome Hero */}
         {!leagueData && (
           <div className="text-center max-w-2xl mx-auto mt-12 mb-16 animate-fade-in">
             <h1 className="text-5xl font-black text-white mb-6 tracking-tight leading-tight">
@@ -299,9 +327,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- REBUILT IMPORT SECTION (Glassmorphism) --- */}
+        {/* --- REBUILT IMPORT SECTION --- */}
         <div className="bg-slate-900/40 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-xl mb-10 border border-slate-800/60 relative overflow-hidden">
-          {/* Subtle background glow */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
           
           <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
@@ -449,30 +476,39 @@ export default function Home() {
                       Clear Trade
                     </button>
 
-                    <button
-                      onClick={() => handleAnalyzeTrade("fast")}
-                      disabled={teamsInvolved.length < 2 || isAnalyzing}
-                      className="bg-slate-200 hover:bg-white text-slate-900 disabled:bg-slate-800 disabled:text-slate-500 px-5 py-2 rounded-lg font-bold transition flex items-center gap-2 shadow-sm"
-                    >
-                      {isAnalyzing && analyzeMode === "fast" ? "Analyzing..." : "⚡ Fast Analysis"}
-                    </button>
+                    <Show when="signed-out">
+                      <SignInButton mode="modal">
+                        <button className="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg text-white font-bold transition flex items-center gap-2 shadow-sm">
+                          🔒 Sign in to Analyze
+                        </button>
+                      </SignInButton>
+                    </Show>
 
-                    {/* PRO BUTTON WITH PAYWALL HOOK */}
-                    <button
-                      onClick={() => handleAnalyzeTrade("pro")}
-                      disabled={teamsInvolved.length < 2 || isAnalyzing}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 px-5 py-2 rounded-lg font-bold transition flex items-center gap-2 shadow-[0_0_15px_rgba(147,51,234,0.3)] text-white relative overflow-hidden group"
-                    >
-                      <span className="absolute inset-0 w-full h-full bg-white/20 group-hover:translate-x-full transition-transform duration-500 -translate-x-full skew-x-12"></span>
-                      <span>🧠 Pro Deep Dive</span>
-                      <svg className="w-4 h-4 ml-1 opacity-70" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>
-                    </button>
+                    <Show when="signed-in">
+                      <button
+                        onClick={() => handleAnalyzeTrade("fast")}
+                        disabled={teamsInvolved.length < 2 || isAnalyzing}
+                        className="bg-slate-200 hover:bg-white text-slate-900 disabled:bg-slate-800 disabled:text-slate-500 px-5 py-2 rounded-lg font-bold transition flex items-center gap-2 shadow-sm"
+                      >
+                        {isAnalyzing && analyzeMode === "fast" ? "Analyzing..." : "⚡ Fast Analysis"}
+                      </button>
+
+                      <button
+                        onClick={() => handleAnalyzeTrade("pro")}
+                        disabled={teamsInvolved.length < 2 || isAnalyzing}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 px-5 py-2 rounded-lg font-bold transition flex items-center gap-2 shadow-[0_0_15px_rgba(147,51,234,0.3)] text-white relative overflow-hidden group"
+                      >
+                        <span className="absolute inset-0 w-full h-full bg-white/20 group-hover:translate-x-full transition-transform duration-500 -translate-x-full skew-x-12"></span>
+                        <span>🧠 Pro Deep Dive</span>
+                        <svg className="w-4 h-4 ml-1 opacity-70" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>
+                      </button>
+                    </Show>
                   </>
                 )}
               </div>
             </div>
 
-            {/* PAYWALL MODAL */}
+            {/* --- THE STRIPE PAYWALL BUTTON --- */}
             {showPaywall && (
               <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm rounded-2xl flex items-center justify-center p-6 animate-fade-in">
                 <div className="bg-slate-900 border border-purple-500/50 rounded-2xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(147,51,234,0.15)]">
@@ -483,9 +519,15 @@ export default function Home() {
                   <p className="text-slate-400 mb-6 text-sm leading-relaxed">
                     Get highly granular, multi-paragraph breakdowns analyzing 3-year asset trajectories, draft capital hit rates, and deep roster implications.
                   </p>
-                  <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white font-bold py-3 rounded-lg mb-3 transition shadow-lg">
+                  
+                  {/* Wired up button! */}
+                  <button 
+                    onClick={handleUpgrade}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white font-bold py-3 rounded-lg mb-3 transition shadow-lg"
+                  >
                     Upgrade to Pro - $4.99/mo
                   </button>
+                  
                   <button onClick={() => setShowPaywall(false)} className="text-slate-400 hover:text-white text-sm font-medium transition">
                     Maybe Later
                   </button>
@@ -493,7 +535,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Rest of the Trade Block (same as before, just styled) */}
             {chatHistory.length === 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto">
                 {teamsInvolved.map((teamName) => (
@@ -532,7 +573,6 @@ export default function Home() {
 
             {analyzeError && <div className="mt-4 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-center text-sm">{analyzeError}</div>}
 
-            {/* Beautiful Chat Interface */}
             {chatHistory.length > 0 && (
               <div className="mt-2 flex flex-col flex-1 min-h-[400px] overflow-hidden border border-slate-800 rounded-xl bg-slate-950/80 shadow-inner">
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
